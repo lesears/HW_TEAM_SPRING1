@@ -1,0 +1,7 @@
+docker>docker-machine start default
+
+df = spark.read.load('file:///data/nyc_taxi_data.csv')
+df.show(15)
+df.count()
+df.filter('trip_distance > 5').count()
+df.groupBy('vehicle_id').agg( {'trip_distance':'sum})
