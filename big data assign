@@ -1,0 +1,11 @@
+Here's what I want you to do:
+
+Load a CSV file into a spark dataframe. You can use any data that you'd like, however, if you are using my Docker container, I already have data loaded within the /data directory (/data/tmdb_5000_movies.csv and /data/nyc_taxi_data.csv)
+
+Display (show) the top 15 records for that spark dataframe that you just loaded.
+
+Display the total number of records in the spark dataframe.
+
+Filter the spark dataframe (I'll let you choose what column(s) you want to filter on).
+
+Perform a groupby (aggregation) that sums one of your numeric variables across a categorical variable. For example, sum the trip_distance by vehicle_id.
