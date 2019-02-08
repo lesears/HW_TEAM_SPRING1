@@ -1,0 +1,44 @@
+libname doe "C:\Users\Laney\Documents\Data\design of experiments\";
+
+proc import datafile = "C:\Users\Laney\Documents\Data\design of experiments\orange team 7.csv"
+out = doe.results
+dbms = csv;
+run;
+
+proc print data=doe.results;
+run; 
+
+proc genmod data = doe.results;
+class location price experience other;
+model will_attend = location price experience other/dist = bin link = logit;
+estimate 'location 1 vs. 2' location 1 -1 0 0 0;
+estimate 'location 1 vs. 3' location 1 0 -1 0 0;
+estimate 'location 1 vs. 5' location 1 0 0 0 -1;
+estimate 'location 2 vs. 3' location 0 -1 1 0 0;
+estimate 'location 2 vs. 5' location 0 -1 0 0 -1;
+estimate 'location 3 vs. 4' location 0 0 -1 1 0;
+estimate 'location 3 vs. 5' location 0 0 -1 0 1;
+estimate 'location 4 vs. 5' location 0 0 0 -1 1;
+
+estimate 'other 1 vs. 2' other 1 -1 0 0 ;
+estimate 'other 1 vs. 3' other 1 0 -1 0;
+estimate 'other 1 vs. 4' other 1 0 0 -1 ;
+estimate 'other 2 vs. 3' other 0 -1 1 0 ;
+estimate 'other 2 vs. 4' other 0 -1 0 1;
+estimate 'other 3 vs. 4' other 0 0 1 -1;
+
+
+estimate 'price 1 vs. 2' price 1 -1 0 0 ;
+estimate 'price 1 vs. 3' price 1 0 -1 0;
+estimate 'price 1 vs. 4' price 1 0 0 -1 ;
+estimate 'price 2 vs. 3' price 0 -1 1 0 ;
+estimate 'price 2 vs. 4' price 0 -1 0 1;
+estimate 'price 3 vs. 4' price 0 0 1 -1;
+
+estimate 'experience 1 vs. 2' experience 1 -1 0  ;
+estimate 'experience 1 vs. 3'experience 1 0 -1 ;
+estimate 'experience 2 vs. 3' experience 0 -1 1 ;
+
+run;
+quit;
+
