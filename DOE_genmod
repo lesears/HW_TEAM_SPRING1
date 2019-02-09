@@ -8,7 +8,8 @@ run;
 proc print data=doe.results;
 run; 
 
-proc genmod data = doe.results;
+/*DESCENDING models the probability that will_attend='1'*/
+proc genmod data = doe.results DESCENDING;
 class location price experience other;
 model will_attend = location price experience other/dist = bin link = logit;
 estimate 'location 1 vs. 2' location 1 -1 0 0 0;
