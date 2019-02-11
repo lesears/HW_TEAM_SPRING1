@@ -9,6 +9,7 @@ proc print data=doe.results;
 run; 
 
 /*DESCENDING models the probability that will_attend='1'*/
+ods output Estimates=est_table;
 proc genmod data = doe.results DESCENDING;
 class location price experience other;
 model will_attend = location price experience other/dist = bin link = logit;
