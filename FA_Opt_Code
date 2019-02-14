@@ -1,0 +1,243 @@
+/*-------------------------------*/
+/*      ARCH & GARCH Models      */
+/*                               */
+/*        Orange Team 7          */
+/*-------------------------------*/
+
+
+/* Load Needed Data */
+proc import datafile = 'C:\Users\derri\Documents\NC State Classes\Financial Analysis Modeling\Data\stocks.csv'
+	out = stocks dbms = csv replace;
+	datarow = 3;
+run;
+
+/* Reset the Format to Avoid SGPLOT Warnings Later On */
+data Stocks;
+  set Stocks;
+  Date = input(Index, anydtdte32.);
+  format Date date7.;
+  if Date >= "01FEB2017"d and Date <= "08FEB2019"d;
+run; 
+
+/*options symbolgen mprint mlogic;*/
+%macro ARCH_Sig_Test (ticker=MSFT);
+
+/* Add 10 Observations for Forecasting at End of Series */
+data Stocks_&ticker.(drop=i);
+	set Stocks end = eof;
+	output;
+	if eof then do i=1 to 5;
+		if weekday(Date) in(2,3,4,5) then Date=Date+1;
+		else Date=Date+3;
+		&ticker._Close=.;
+		&ticker._r=.;
+		output;
+	end;
+run;
+
+
+/* Fit Kernel Density-estimation on Log Returns*/
+proc sgplot data=Stocks_&ticker.;
+  title "&ticker.: Log Returns Kernel Density";
+  density &ticker._r / type=kernel;
+  keylegend / location=inside position=topright;
+run;
+
+/* Test for GARCH Effects and Normality */
+ods output ARCHTest=&ticker._arch_test;
+proc autoreg data=Stocks_&ticker./*all plots(unpack)*/;
+   model &ticker._r =/ archtest normal;
+run;
+
+/*Take the arch outputs for each ticker and add a ticker label to each*/
+data &ticker._arch_test;
+	length company $4;
+	set &ticker._arch_test;
+	company = "&ticker.";
+run;
+
+/*Taking only the first order lag term from each data set*/
+data &ticker._arch (drop=Model);
+	set &ticker._arch_test;
+	if Order =1;
+run;
+
+
+
+%mend ARCH_Sig_Test;
+
+%ARCH_Sig_Test (ticker = AAPL)
+%ARCH_Sig_Test (ticker = AXP)
+%ARCH_Sig_Test (ticker = BA)
+%ARCH_Sig_Test (ticker = CAT)
+%ARCH_Sig_Test (ticker = CSCO)
+%ARCH_Sig_Test (ticker = CVX)
+%ARCH_Sig_Test (ticker = DIS)
+%ARCH_Sig_Test (ticker = DWDP)
+%ARCH_Sig_Test (ticker = GS)
+%ARCH_Sig_Test (ticker = HD)
+%ARCH_Sig_Test (ticker = IBM)
+%ARCH_Sig_Test (ticker = INTC)
+%ARCH_Sig_Test (ticker = JNJ)
+%ARCH_Sig_Test (ticker = JPM)
+%ARCH_Sig_Test (ticker = KO)
+%ARCH_Sig_Test (ticker = MCD)
+%ARCH_Sig_Test (ticker = MMM)
+%ARCH_Sig_Test (ticker = MRK)
+%ARCH_Sig_Test (ticker = MSFT)
+%ARCH_Sig_Test (ticker = NKE)
+%ARCH_Sig_Test (ticker = PFE)
+%ARCH_Sig_Test (ticker = PG)
+%ARCH_Sig_Test (ticker = TRV)
+%ARCH_Sig_Test (ticker = UNH)
+%ARCH_Sig_Test (ticker = UTX)
+%ARCH_Sig_Test (ticker = V)
+%ARCH_Sig_Test (ticker = VZ)
+%ARCH_Sig_Test (ticker = WBA)
+%ARCH_Sig_Test (ticker = WMT)
+%ARCH_Sig_Test (ticker = XOM)
+;
+
+
+data All_arch_tests;
+	set
+	AAPL_arch
+	AXP_arch
+	BA_arch
+	CAT_arch
+	CSCO_arch
+	CVX_arch
+	DIS_arch
+	DWDP_arch
+	GS_arch
+	HD_arch
+	IBM_arch
+	INTC_arch
+	JNJ_arch
+	JPM_arch
+	KO_arch
+	MCD_arch
+	MMM_arch
+	MRK_arch
+	MSFT_arch
+	NKE_arch
+	PFE_arch
+	PG_arch
+	TRV_arch
+	UNH_arch
+	UTX_arch
+	V_arch
+	VZ_arch
+	WBA_arch
+	WMT_arch
+	XOM_arch
+	;
+run;
+
+proc sort data = All_arch_tests;
+	by desending Q;
+run;
+
+proc sql inobs=5;
+create table Top_5 as 
+select Company
+from All_arch_tests
+; quit;
+
+proc print data = Top_5;
+run;
+
+
+/*options symbolgen mprint mlogic;*/
+%macro Top_5 (ticker=XOM);
+
+/* Plot the Price Data */
+proc sgplot data=Stocks_&ticker.;
+  title "&ticker.: Price";
+  series x=Date y=&ticker._Close;
+  keylegend / location=inside position=topright;
+  xaxis VALUES= ("01FEB2017"d to "15FEB2019"d by year);
+run;
+
+/* Plot the Returns Data */
+proc sgplot data=Stocks_&ticker.;
+  title "&ticker.: Log Returns";
+  series x=Date y=&ticker._r;
+  keylegend / location=inside position=topright;
+  xaxis VALUES= ("01FEB2017"d to "15FEB2019"d by year);
+run;
+
+/* Estimate Different GARCH Models */
+ods output FitSummary=fitsum_all_garch_models;
+proc autoreg data=Stocks_&ticker. OUTEST=param_estimates;
+   garch_n:   model &ticker._r = / noint garch=(p=1, q=1) method=ml; 
+                            output out=&ticker._garch_n ht=&ticker._predicted_var;
+   garch_t:   model &ticker._r =  / noint garch=(p=1, q=1) dist=t method=ml; 
+                            output out=&ticker._garch_t ht=&ticker._predicted_var;
+   egarch:    model &ticker._r = / noint garch=(p=1, q=1 ,type=exp ) method=ml;  
+                            output out=&ticker._egarch ht=&ticker._predicted_var;
+   qgarch_t:  model &ticker._r = / noint garch=(p=1, q=1, type=QGARCH) dist=t method=ml;
+                            output out=&ticker._qgarch_t ht=&ticker._predicted_var;
+   qgarch:    model &ticker._r = / noint garch=(p=1, q=1, type=QGARCH) method=ml;
+                            output out=&ticker._qgarch ht=&ticker._predicted_var;
+   garch_m:   model &ticker._r = / noint garch=(p=1, q=1, mean=linear) method=ml;
+   							output out=&ticker._garch_m ht=&ticker._predicted_var;
+   ewma:      model &ticker._r = / noint garch=(p=1, q=1, type=integ,noint) method=ml;
+                            output out=&ticker._ewma ht=&ticker._predicted_var;
+run;
+
+/* Prepare Data for Plotting the Results */
+data all_results_&ticker.;
+  set &ticker._garch_n(in=a) &ticker._garch_t(in=b) &ticker._egarch(in=c) &ticker._qgarch_t(in=d) &ticker._garch_m(in=e) &ticker._ewma(in=f);
+  format model $20.;
+  if a then model="GARCH: Normal";
+  if b then model="GARCH: T dist";
+  else if c then model="Exp. GARCH";
+  else if d then model="Quad. GARCH: T dist";
+  else if e then model="GARCH Mean";
+  else if f then model="EWMA";
+run;
+
+proc sort data=all_results_&ticker.;
+  by model;
+run;
+
+/* Plot the Different Model Forecasts */
+/*This lets you visualize the models that you tried in the previous step*/
+title;
+proc gplot data=all_results_&ticker. /*(where=(Date ge '01JAN2013'd))*/;
+  plot (&ticker._predicted_var)*Date = model/ legend=legend1;
+  plot &ticker._r*Date / legend=legend1;
+  symbol1 i=join c=blue      w=2 v=none;
+  symbol2 i=join c=green     w=2 v=none;
+  symbol3 i=join c=red       w=2 v=none;
+  symbol4 i=join c=magenta   w=2 v=none;
+  symbol5 i=join c=black     w=2 v=none;
+  symbol6 i=none c=purple    w=1 v=dot;
+run;
+quit;
+
+/* Extract AIC, SBC and LIK measures */
+data sbc_aic_lik;
+   set fitsum_all_garch_models;
+   keep Model SBC AIC Likelihood;
+   if upcase(Label1)="SBC" then do; SBC=input(cValue1,BEST12.4); end;
+   if upcase(Label2)="SBC" then do; SBC=input(cValue2,BEST12.4); end;
+   if upcase(Label1)="AIC" then do; AIC=input(cValue1,BEST12.4); end;
+   if upcase(Label2)="AIC" then do; AIC=input(cValue2,BEST12.4); end;
+   if upcase(Label1)="LOG LIKELIHOOD" then do; Likelihood=input(cValue1,BEST12.4); end;
+   if upcase(Label2)="LOG LIKELIHOOD" then do; Likelihood=input(cValue2,BEST12.4); end;
+   if not ((SBC=.) and (Likelihood=.)) then output;
+run;
+
+%mend Top_5;
+
+
+%Top_5 (ticker = XOM)
+%Top_5 (ticker = MSFT)
+%Top_5 (ticker = MRK)
+%Top_5 (ticker = CVX)
+%Top_5 (ticker = UTX)
+;
+
+
