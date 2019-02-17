@@ -4,9 +4,9 @@
 /*        Orange Team 7          */
 /*-------------------------------*/
 
-
+%let path = C:\Users\derri\Documents\NC State Classes\Financial Analysis Modeling\Data;
 /* Load Needed Data */
-proc import datafile = 'C:\Users\derri\Documents\NC State Classes\Financial Analysis Modeling\Data\stocks.csv'
+proc import datafile = "&path.\stocks.csv"
 	out = stocks dbms = csv replace;
 	datarow = 3;
 run;
@@ -51,9 +51,9 @@ run;
 
 /*Take the arch outputs for each ticker and add a ticker label to each*/
 data &ticker._arch_test;
-	length company $4;
+	length Company $4;
 	set &ticker._arch_test;
-	company = "&ticker.";
+	Company = "&ticker.";
 run;
 
 /*Taking only the first order lag term from each data set*/
@@ -168,7 +168,8 @@ proc sgplot data=Stocks_&ticker.;
 run;
 
 /* Estimate Different GARCH Models */
-ods output FitSummary=fitsum_all_garch_models;
+ods output FitSummary=fitsum_all_garch_models_&ticker.;
+ods output ParameterEstimates = alpha_beta_&ticker.;
 proc autoreg data=Stocks_&ticker. OUTEST=param_estimates;
    garch_n:   model &ticker._r = / noint garch=(p=1, q=1) method=ml; 
                             output out=&ticker._garch_n ht=&ticker._predicted_var;
@@ -188,7 +189,7 @@ run;
 
 /* Prepare Data for Plotting the Results */
 data all_results_&ticker.;
-  set &ticker._garch_n(in=a) &ticker._garch_t(in=b) &ticker._egarch(in=c) &ticker._qgarch_t(in=d) &ticker._garch_m(in=e) &ticker._ewma(in=f);
+  set &ticker._qgarch_t(in=a) &ticker._garch_t(in=b) &ticker._egarch(in=c) &ticker._qgarch_t(in=d) &ticker._garch_m(in=e) &ticker._ewma(in=f);
   format model $20.;
   if a then model="GARCH: Normal";
   if b then model="GARCH: T dist";
@@ -218,8 +219,8 @@ run;
 quit;
 
 /* Extract AIC, SBC and LIK measures */
-data sbc_aic_lik;
-   set fitsum_all_garch_models;
+data sbc_aic_lik_&ticker.;
+   set fitsum_all_garch_models_&ticker.;
    keep Model SBC AIC Likelihood;
    if upcase(Label1)="SBC" then do; SBC=input(cValue1,BEST12.4); end;
    if upcase(Label2)="SBC" then do; SBC=input(cValue2,BEST12.4); end;
@@ -228,6 +229,18 @@ data sbc_aic_lik;
    if upcase(Label1)="LOG LIKELIHOOD" then do; Likelihood=input(cValue1,BEST12.4); end;
    if upcase(Label2)="LOG LIKELIHOOD" then do; Likelihood=input(cValue2,BEST12.4); end;
    if not ((SBC=.) and (Likelihood=.)) then output;
+run;
+
+data sbc_aic_lik_&ticker.;
+	length Company $4;
+	set sbc_aic_lik_&ticker.;
+	Company = "&ticker.";
+run;
+
+/*Selecting the last 5 rows to get the predictions for each ticker*/
+data Variance_values_&ticker. (keep = &ticker._predicted_var);
+	set &ticker._qgarch_t;
+	if &ticker._close = .;
 run;
 
 %mend Top_5;
@@ -241,3 +254,318 @@ run;
 ;
 
 
+/*Create one data set with all the model Stats in one*/
+data All_Model_stats;
+	set
+	sbc_aic_lik_XOM
+	sbc_aic_lik_MSFT
+	sbc_aic_lik_MRK
+	sbc_aic_lik_CVX
+	sbc_aic_lik_UTX
+	;
+run;
+
+
+/*After veiwing the dataset that was made in the previous step,*/
+/*we found that the qgarch_t model worked the best so we are going*/
+/*to pull the stats for just that model.*/
+data qgarch_t_models;
+	set All_Model_stats;
+	if Model = "qgarch_t";
+run;
+
+
+/*Merge the variance dataset horizontally to make it one table*/
+data all_predicted_var;
+	merge 
+	Variance_values_XOM
+	Variance_values_MSFT
+	Variance_values_MRK
+	Variance_values_CVX
+	Variance_values_UTX;
+run;
+
+/*Merge all of the alpha and beta tables */
+/*to get all of the information in one place*/
+data alpha_beta_all;
+	length Company $4;
+	set alpha_beta_XOM (in=XOM)
+	alpha_beta_MSFT (in=MSFT)
+	alpha_beta_MRK (in=MRK)
+	alpha_beta_CVX (in=CVX)
+	alpha_beta_UTX (in=UTX)
+	;
+	where Model = "qgarch_t";
+	if XOM then Company = "XOM";
+	else if MSFT then Company = "MSFT";
+	else if MRK then Company = "MRK";
+	else if CVX then Company = "CVX";
+	else if UTX then Company = "UTX";
+	else Company = "";
+run;
+
+/*Part of the assignment that ask to sort by beta*/
+
+data All_Betas;
+	set alpha_beta_all;
+	if Variable = "QARCHA1";
+run;
+
+proc sort data = All_betas;
+	by descending Estimate;
+run;
+
+/*Part of the assignment that ask to sort by alpha*/
+data All_Alphas;
+	set alpha_beta_all;
+	if Variable = "QARCHB1";
+run;
+
+proc sort data = All_Alphas;
+	by descending Estimate;
+run;
+
+
+data stocks_project (keep = Index XOM_Close XOM_r MSFT_Close MSFT_r MRK_Close MRK_r CVX_Close CVX_r UTX_Close UTX_r);
+	set Stocks;
+run;
+
+
+/*==================================================================*/
+/* Historical Approach */
+
+/* Reset the Format to Avoid SGPLOT Warnings Later On */
+data stocks_project;
+  set stocks_project;
+  Date = input(Index,anydtdte32.);
+  format Date date7.;
+run; 
+
+/* Calculate the Correlation Between the Stocks */
+proc corr data=stocks_project cov out=Corr;
+	var xom_r msft_r mrk_r cvx_r utx_r;
+run; 
+
+data Cov;
+	set Corr;
+	where _TYPE_='COV';
+run;
+
+data Mean;
+	set Corr;
+	where _TYPE_='MEAN';
+run;
+
+/* Optimization of Assets - Historical Variance/Covariance */
+proc optmodel;
+  
+  /* Declare Sets and Parameters */
+  set <str> Assets1, Assets2, Assets3;
+  num Covariance{Assets1,Assets2};
+  num Mean{Assets1};
+
+  /* Read in SAS Data Sets */
+  read data Cov into Assets1=[_NAME_];
+  read data Cov into Assets2=[_NAME_] {i in Assets1}     
+    <Covariance[I,_NAME_]=col(i)>;
+  read data Mean into Assets3=[_NAME_] {i in Assets1} <Mean[i]=col(i)>;
+  /* Declare Variables */
+  var Proportion{Assets1} >= 0 init 0;
+
+  /* Declare Objective Function */
+  min Risk = sum{i in Assets1}
+    (sum{j in Assets1}Proportion[i]*Covariance[i,j]*Proportion[j]);
+  
+  /* Declare Constraints */
+  con Return: 0.0005 <= sum{i in Assets1}Proportion[i]*Mean[i];
+  con Sum: 1 = sum{i in Assets1}Proportion[i];
+
+  /* Call the Solver */
+  solve;
+
+  /* Print Solutions */
+  print Covariance Mean;
+  print Proportion; *‘Sum=’(sum{i in Assets1}Proportion[i]);
+
+  /* Output Results */
+  create data Weight_H from [Assets1] Proportion;
+
+quit;
+
+
+
+
+/*==================================================================*/
+/* CAPM Approach */
+
+
+/* Calculate DJI Mean and Variance for CAPM */
+proc means data=stocks_project mean var;
+	var DJI_r;
+	output out=DJIX var=Var mean=Mean;
+run;
+
+/* Calculate CAPM Regressions for Stocks for 2014-2016 */
+proc reg data=stocks_project outest=Coef;
+	MSFT: model MSFT_r = DJI_r;
+	xom: model xom_r = DJI_r;
+	mrk: model mrk_r = DJI_r;
+	cvx: model cvx_r = DJI_r;
+	utx: model utx_r = DJI_r;
+run;
+quit;
+
+/* Optimization of Assets - CAPM */
+proc optmodel;
+  
+  /* Declare Sets and Parameters */
+  set <str> Assets1;
+  num Alpha{Assets1};
+  num Beta{Assets1};
+  num Sigma{Assets1};
+  num MeanX;
+  num VarX;
+
+  /* Read in SAS Data Sets */
+  read data Coef into Assets1=[_DEPVAR_] Alpha=col("Intercept");
+  read data Coef into Assets1=[_DEPVAR_] Beta=col("DJI_r");
+  read data Coef into Assets1=[_DEPVAR_] Sigma=col("_RMSE_");
+  read data DJIX into MeanX=col("Mean");
+  read data DJIX into VarX=col("Var");
+
+  /* Declare Variables */
+  var Proportion{Assets1} >= 0 init 0;
+
+  /* Declare Objective Function */
+  min Risk = sum{i in Assets1}Proportion[i]*Sigma[i]**2 
+             + VarX*(sum{i in Assets1}Proportion[i]*Beta[i])**2;
+  
+  /* Declare Constraints */
+  con Return: 0.0005 <= sum{i in Assets1}Proportion[i]*Alpha[i] 
+                        + MeanX*(sum{i in Assets1}Proportion[i]*Beta[i]);
+  con Sum: 1 = sum{i in Assets1}Proportion[i];
+
+  /* Call the Solver */
+  solve;
+
+  /* Print Solutions */
+  print Alpha Beta Sigma MeanX VarX;
+  print Proportion;* ‘Sum=’(sum{i in Assets1}Proportion[i]);
+
+  /* Output Results */
+  create data Weight_C from [Assets1] Proportion;
+
+quit;
+
+/*==================================================================*/
+/* GARCH Approach */
+
+
+/* Add 5 Observations for Forecasting at End of Series */
+data stocks_project(drop=i);
+	set stocks_project end = eof;
+	output;
+	if eof then do i=1 to 5;
+		if weekday(date) in(2,3,4,5) then date=date+1;
+		else date=date+3;
+    msft_p=.; msft_r=.;
+	xom_p=.; xom_r=.;
+	mrk_p=.; mrk_r=.;
+	cvx_p=.; cvx_r=.;
+	utx_p=.; utx_r=.;
+    output;
+  end;
+run;
+
+/* Estimate Different GARCH Models */
+proc autoreg data=stocks_project;
+   MSFT_qgarch_t:   model msft_r =  / garch=(p=1, q=1, type=QGARCH) dist=t method=ml maxiter=250;
+                            output out=msft_qgarch_t ht=pred_var_msft;
+   xom_qgarch_t:   model xom_r =  / garch=(p=1, q=1, type=QGARCH) dist=t method=ml maxiter=250;
+                            output out=xom_qgarch_t ht=pred_var_xom;
+   mrk_qgarch_t:  model mrk_r = / garch=(p=1, q=1, type=QGARCH) dist=t method=ml maxiter=250;
+                            output out=mrk_qgarch_t ht=pred_var_mrk;
+   cvx_qgarch_t:   model cvx_r = / garch=(p=1, q=1, type=QGARCH) dist=t method=ml maxiter=250;
+                            output out=utx_qgarch_t ht=pred_var_utx;
+   utx_qgarch_t:   model utx_r = / garch=(p=1, q=1, type=QGARCH) dist=t method=ml maxiter=250;
+                            output out=utx_qgarch_t ht=pred_var_utx;
+
+run;
+
+/* Get New Forecasted Values for Variance */
+data combined (keep=date pred_var_msft pred_var_xom pred_var_mrk pred_var_cvx pred_var_utx);
+	merge msft_qgarch_t xom_qgarch_t mrk_qgarch_t cvx_qgarch_t utx_qgarch_t;
+	if date <= '01FEB2019'd then delete;
+run;
+
+proc means data=combined median;
+	var pred_var_msft pred_var_xom pred_var_mrk pred_var_cvx;
+	output out=P_GARCH median=p_MSFT p_xom p_mrk p_cvx p_utx;
+run;
+
+data _null_;
+	set P_GARCH;
+	call symput("msft_pred", p_MSFT);
+	call symput("xom_pred", p_xom);
+	call symput("mrk_pred", p_mrk);
+	call symput("cvx_pred", p_cvx);
+	call symput("utx_pred", p_utx);
+run;
+
+proc corr data=stocks_project cov out=Corr;
+	var msft_r xom_r mrk_r cvx_r utx_r;
+run;
+
+data Cov;
+	set Corr;
+	where _TYPE_='COV';
+run;
+
+data Mean;
+	set Corr;
+	where _TYPE_='MEAN';
+run;
+
+data Cov;
+	set Cov;
+	if _NAME_="msft_r" then msft_r=&msft_pred;
+	if _NAME_="xom_r" then xom_r=&xom_pred;
+	if _NAME_="mrk_r" then mrk_r=&mrk_pred;
+	if _NAME_="cvx_r" then cvx_r=&cvx_pred;
+	if _NAME_="utx_r" then cvx_r=&utx_pred;
+run;
+
+proc optmodel;
+  
+  /* Declare Sets and Parameters */
+  set <str> Assets1, Assets2, Assets3;
+  num Covariance{Assets1,Assets2};
+  num Mean{Assets1};
+
+  /* Read in SAS Data Sets */
+  read data Cov into Assets1=[_NAME_];
+  read data Cov into Assets2=[_NAME_] {i in Assets1}     
+    <Covariance[I,_NAME_]=col(i)>;
+  read data Mean into Assets3=[_NAME_] {i in Assets1} <Mean[i]=col(i)>;
+  /* Declare Variables */
+  var Proportion{Assets1} >= 0 init 0;
+
+  /* Declare Objective Function */
+  min Risk = sum{i in Assets1}
+    (sum{j in Assets1}Proportion[i]*Covariance[i,j]*Proportion[j]);
+  
+  /* Declare Constraints */
+  con Return: 0.0005 <= sum{i in Assets1}Proportion[i]*Mean[i];
+  con Sum: 1 = sum{i in Assets1}Proportion[i];
+
+  /* Call the Solver */
+  solve;
+
+  /* Print Solutions */
+  print Covariance Mean;
+  print Proportion;
+
+  /* Output Results */
+  create data Weight_G from [Assets1] Proportion;
+
+quit;
