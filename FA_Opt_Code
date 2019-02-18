@@ -495,7 +495,7 @@ run;
 /* Get New Forecasted Values for Variance */
 data combined (keep=date pred_var_msft pred_var_xom pred_var_mrk pred_var_cvx pred_var_utx);
 	merge msft_qgarch_t xom_qgarch_t mrk_qgarch_t cvx_qgarch_t utx_qgarch_t;
-	if date <= '11FEB2019'd then delete;
+	if date <= '10FEB2019'd then delete;
 run;
 
 proc means data=combined median;
@@ -689,8 +689,3 @@ YAXIS labelattrs=(size=11) LABEL = 'Expected Return' valueattrs=(color=black siz
 format Expected_Return PERCENT5.;
 keylegend / location=inside position=bottomright valueattrs=(STYLE= ITALIC WEIGHT= BOLD);
 quit;
-
-
-
-
-
