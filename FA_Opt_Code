@@ -4,7 +4,7 @@
 /*        Orange Team 7          */
 /*-------------------------------*/
 
-%let path = C:\Users\derri\Documents\NC State Classes\Financial Analysis Modeling\Data;
+%let path = C:\Users\derri\Documents\NC State Classes\Financial Analysis Modeling\Homework2;
 /* Load Needed Data */
 proc import datafile = "&path.\stocks.csv"
 	out = stocks dbms = csv replace;
@@ -16,7 +16,7 @@ data Stocks;
   set Stocks;
   Date = input(Index, anydtdte32.);
   format Date date7.;
-  if Date >= "01FEB2017"d and Date <= "08FEB2019"d;
+  if Date >= "01FEB17"d and Date <= "08FEB19"d;
 run; 
 
 /*options symbolgen mprint mlogic;*/
@@ -91,7 +91,7 @@ run;
 %ARCH_Sig_Test (ticker = TRV)
 %ARCH_Sig_Test (ticker = UNH)
 %ARCH_Sig_Test (ticker = UTX)
-%ARCH_Sig_Test (ticker = V)
+/*%ARCH_Sig_Test (ticker = V)*/
 %ARCH_Sig_Test (ticker = VZ)
 %ARCH_Sig_Test (ticker = WBA)
 %ARCH_Sig_Test (ticker = WMT)
@@ -126,7 +126,7 @@ data All_arch_tests;
 	TRV_arch
 	UNH_arch
 	UTX_arch
-	V_arch
+/*	V_arch*/
 	VZ_arch
 	WBA_arch
 	WMT_arch
@@ -495,7 +495,7 @@ run;
 /* Get New Forecasted Values for Variance */
 data combined (keep=date pred_var_msft pred_var_xom pred_var_mrk pred_var_cvx pred_var_utx);
 	merge msft_qgarch_t xom_qgarch_t mrk_qgarch_t cvx_qgarch_t utx_qgarch_t;
-	if date <= '01FEB2019'd then delete;
+	if date <= '11FEB2019'd then delete;
 run;
 
 proc means data=combined median;
@@ -689,3 +689,8 @@ YAXIS labelattrs=(size=11) LABEL = 'Expected Return' valueattrs=(color=black siz
 format Expected_Return PERCENT5.;
 keylegend / location=inside position=bottomright valueattrs=(STYLE= ITALIC WEIGHT= BOLD);
 quit;
+
+
+
+
+
