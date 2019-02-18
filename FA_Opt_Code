@@ -486,7 +486,7 @@ proc autoreg data=stocks_project;
    mrk_qgarch_t:  model mrk_r = / garch=(p=1, q=1, type=QGARCH) dist=t method=ml maxiter=250;
                             output out=mrk_qgarch_t ht=pred_var_mrk;
    cvx_qgarch_t:   model cvx_r = / garch=(p=1, q=1, type=QGARCH) dist=t method=ml maxiter=250;
-                            output out=utx_qgarch_t ht=pred_var_utx;
+                            output out=cvx_qgarch_t ht=pred_var_cvx;
    utx_qgarch_t:   model utx_r = / garch=(p=1, q=1, type=QGARCH) dist=t method=ml maxiter=250;
                             output out=utx_qgarch_t ht=pred_var_utx;
 
@@ -499,7 +499,7 @@ data combined (keep=date pred_var_msft pred_var_xom pred_var_mrk pred_var_cvx pr
 run;
 
 proc means data=combined median;
-	var pred_var_msft pred_var_xom pred_var_mrk pred_var_cvx;
+	var pred_var_msft pred_var_xom pred_var_mrk pred_var_cvx pred_var_utx;
 	output out=P_GARCH median=p_MSFT p_xom p_mrk p_cvx p_utx;
 run;
 
@@ -532,7 +532,7 @@ data Cov;
 	if _NAME_="xom_r" then xom_r=&xom_pred;
 	if _NAME_="mrk_r" then mrk_r=&mrk_pred;
 	if _NAME_="cvx_r" then cvx_r=&cvx_pred;
-	if _NAME_="utx_r" then cvx_r=&utx_pred;
+	if _NAME_="utx_r" then utx_r=&utx_pred;
 run;
 
 proc optmodel;
